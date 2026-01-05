@@ -1,16 +1,9 @@
 from products.models import Keyboard
 from .models import Cart, CartItem
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, redirect
-from django.contrib.auth.decorators import login_required
+from django.shortcuts import get_object_or_404
 import json
 from django.views.decorators.csrf import csrf_exempt
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from rest_framework import status
-from django.contrib.auth.hashers import make_password
-from django.contrib.auth.models import User
-from django.contrib.auth import authenticate, login
 
 #View Cart
 def get_cart(request):
@@ -29,7 +22,8 @@ def get_cart(request):
                 'product': item.product.name,
                 'quantity': item.quantity,
                 'price' : item.product.price,
-                'total_price' : item.get_total_price()
+                'total_price' : item.get_total_price(),
+                "image_url": item.product.image_url,
             }
             for item in cart_items
         ],
@@ -72,36 +66,34 @@ def remove_from_cart(request, item_id):
     except CartItem.DoesNotExist:
         return JsonResponse({'error': 'Item not found in cart'}, status=404)
 
-
-#------------ Login/Signup Section -----------------------
-
-#Signup
-@api_view(['POST'])
+#Updating Quantity of products
 @csrf_exempt
-def signup(request):
-    email = request.data.get('email')
-    password = request.data.get('password')
-    if User.objects.filter(username=email).exists():
-        return Response({"error": "User with this email already exists"})
+def update_quantity(request, item_id):
+    if request.method == "POST":
+        data = json.loads(request.body)
+        data = json.loads(request.body)
+        quantity = int(data.get("quantity", 1))
+        
+        cart_item = get_object_or_404(CartItem, id=item_id)
+        
+        if quantity <= 0:
+            cart_item.delete()
+        else:
+            cart_item.quantity = quantity
+            cart_item.save()
+            
+        return JsonResponse({"success": True}, status=200)
     
-    user = User.objects.create(
-        username=email,
-        password=make_password(password)
-    )
-    return Response({"message": "Account created successfully!"}, status=status.HTTP_201_CREATED)
-
-# Login
-@api_view(['POST'])
+#Clearing cart
 @csrf_exempt
-def login_user(request):
-    email = request.data.get('email')
-    password = request.data.get('password')
-    user = authenticate(user=email, password=password)
-    
-    if user is not None:
-        login(request, user)
-        return Response({"message": "Login successful!"}, status=status.HTTP_200_OK)
-    else:
-        return Response({"error": "Invalid credentials."}, status=status.HTTP_401_UNAUTHORIZED)
-    
-    
+def clear_cart(request):
+    if request.method == "POST":
+        if request.user.is_authenticated:
+            cart = Cart.objects.filter(user=request.user).first()
+        else:
+            cart = Cart.objects.filter(user=None).first()
+            
+        if cart:
+            cart.items.all().delete()
+        
+        return JsonResponse({"message": "Cart cleared successfully"})
