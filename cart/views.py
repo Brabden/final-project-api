@@ -71,7 +71,6 @@ def remove_from_cart(request, item_id):
 def update_quantity(request, item_id):
     if request.method == "POST":
         data = json.loads(request.body)
-        data = json.loads(request.body)
         quantity = int(data.get("quantity", 1))
         
         cart_item = get_object_or_404(CartItem, id=item_id)
